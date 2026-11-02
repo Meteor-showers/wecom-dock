@@ -13,22 +13,29 @@ import (
 )
 
 type fakeMsg struct {
+	mu      sync.Mutex
 	replies []string
 	sent    []string
 	cards   int
 }
 
 func (f *fakeMsg) ReplyMarkdown(_ context.Context, _, content string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.replies = append(f.replies, content)
 	return nil
 }
 func (f *fakeMsg) ReplyWelcome(context.Context, string, string) error   { return nil }
 func (f *fakeMsg) UpdateCard(context.Context, string, wecom.Card) error { return nil }
 func (f *fakeMsg) SendMarkdown(_ context.Context, _ string, _ int, content string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.sent = append(f.sent, content)
 	return nil
 }
 func (f *fakeMsg) SendCard(context.Context, string, int, wecom.Card) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.cards++
 	return nil
 }
@@ -80,6 +87,38 @@ func TestUpdateUsesResolvedName(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("updated %#v replies %#v", ctl.updated, msg.replies)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestStatusRepliesBeforeTheScanFinishes(t *testing.T) {
+	msg := &fakeMsg{}
+	ctl := &fakeCtl{reports: []monitor.Report{{
+		Name: "nginx", Image: "nginx:latest", Kind: monitor.KindCurrent,
+	}}}
+	b := &Bot{Msg: msg, Ctrl: ctl, Store: openStore(t)}
+	b.OnMessage(context.Background(), wecom.Incoming{ReqID: "r", UserID: "u", ChatID: "u", ChatType: 1, Text: "状态"})
+	msg.mu.Lock()
+	gotAck := len(msg.replies) == 1 && strings.Contains(msg.replies[0], "正在查看")
+	msg.mu.Unlock()
+	if !gotAck {
+		t.Fatal(msg.replies)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		msg.mu.Lock()
+		n := len(msg.sent)
+		body := ""
+		if n > 0 {
+			body = msg.sent[0]
+		}
+		msg.mu.Unlock()
+		if n == 1 && strings.Contains(body, "nginx") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("sent %#v", msg.sent)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

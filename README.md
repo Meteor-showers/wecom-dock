@@ -39,6 +39,16 @@ go run ./cmd/wecom-dock
 
 默认每 30 分钟查一次。改 `CHECK_INTERVAL`，例如 `1h`。状态文件在 `data/state.json`。
 
+国内服务器访问 Docker Hub 时，在 `.env` 里加上这台机器能访问到的代理，然后 `docker compose up -d`：
+
+```bash
+HTTP_PROXY=http://192.168.1.10:7897
+HTTPS_PROXY=http://192.168.1.10:7897
+NO_PROXY=localhost,127.0.0.1
+```
+
+这个代理只给本程序查版本用。`docker pull` 走宿主机的 Docker 引擎，还要在 Docker 上配镜像加速或代理。容器里的 `127.0.0.1` 指向容器自己，不要填本机回环地址，除非用了 `network_mode: host`。
+
 ## 指令
 
 | 发送 | 作用 |

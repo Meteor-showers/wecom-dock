@@ -133,7 +133,7 @@ func (c *Client) session(ctx context.Context) error {
 			}
 			c.Log.Info("收到消息", "user", msg.UserID, "chat", msg.ChatID, "text", msg.Text)
 			if c.Handler != nil {
-				c.Handler.OnMessage(sessCtx, msg)
+				go c.Handler.OnMessage(sessCtx, msg)
 			}
 		case cmdEvent:
 			msg, err := parseBody(frame.Headers.ReqID, frame.Body)
@@ -146,7 +146,7 @@ func (c *Client) session(ctx context.Context) error {
 				return errors.New("连接被新的订阅踢掉")
 			}
 			if c.Handler != nil {
-				c.Handler.OnEvent(sessCtx, msg)
+				go c.Handler.OnEvent(sessCtx, msg)
 			}
 		default:
 			if frame.Cmd != "" {

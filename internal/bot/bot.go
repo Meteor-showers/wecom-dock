@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/pluto/wecom-dock/internal/monitor"
 	"github.com/pluto/wecom-dock/internal/store"
@@ -70,9 +71,11 @@ func (b *Bot) OnMessage(ctx context.Context, in wecom.Incoming) {
 	case "whoami":
 		b.reply(ctx, in, "你的 userid 是 `"+in.UserID+"`")
 	case "status":
-		b.replyReports(ctx, in, false)
+		b.reply(ctx, in, "正在查看容器……")
+		go b.finishReports(in, false)
 	case "check":
-		b.replyReports(ctx, in, true)
+		b.reply(ctx, in, "正在检查更新……")
+		go b.finishReports(in, true)
 	case "update":
 		b.updateOne(ctx, in, cmd.Arg)
 	case "updateall":
@@ -243,13 +246,18 @@ func (b *Bot) finishUpgrade(in wecom.Incoming, name string) {
 	_ = b.Msg.SendMarkdown(b.root(), in.ChatID, in.ChatType, resultText(name, res, err))
 }
 
-func (b *Bot) replyReports(ctx context.Context, in wecom.Incoming, withCards bool) {
+func (b *Bot) finishReports(in wecom.Incoming, withCards bool) {
+	ctx, cancel := context.WithTimeout(b.root(), 2*time.Minute)
+	defer cancel()
+	b.log().Info("开始查看容器")
 	reports, err := b.load(ctx)
 	if err != nil {
-		b.reply(ctx, in, "检查失败："+err.Error())
+		b.log().Warn("查看容器失败", "err", err)
+		b.push(in, "检查失败："+err.Error())
 		return
 	}
-	b.reply(ctx, in, formatReports(reports))
+	b.log().Info("查看完成", "count", len(reports))
+	b.push(in, formatReports(reports))
 	if !withCards {
 		return
 	}
@@ -338,6 +346,16 @@ func (b *Bot) allowed(user string) bool {
 		}
 	}
 	return false
+}
+
+func (b *Bot) push(in wecom.Incoming, content string) {
+	if in.ChatID == "" {
+		b.log().Warn("没有会话，结果发不出去")
+		return
+	}
+	if err := b.Msg.SendMarkdown(b.root(), in.ChatID, in.ChatType, content); err != nil {
+		b.log().Warn("主动回复失败", "err", err, "chat", in.ChatID)
+	}
 }
 
 func (b *Bot) reply(ctx context.Context, in wecom.Incoming, content string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pluto/wecom-dock/internal/dockerx"
@@ -45,10 +46,19 @@ func (s *Service) Reports(ctx context.Context) ([]Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Report, 0, len(list))
-	for _, ct := range list {
-		out = append(out, s.one(ctx, ct))
+	out := make([]Report, len(list))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i := range list {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			out[i] = s.one(ctx, list[i])
+		}(i)
 	}
+	wg.Wait()
 	return out, nil
 }
 
@@ -121,7 +131,9 @@ func (s *Service) one(ctx context.Context, ct dockerx.Container) Report {
 	if osName == "" {
 		osName = "linux"
 	}
-	man, err := s.Reg.Lookup(ctx, ref, osName, arch, ct.Variant)
+	lookCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	man, err := s.Reg.Lookup(lookCtx, ref, osName, arch, ct.Variant)
 	if err != nil {
 		r.Kind = KindError
 		r.Detail = err.Error()
