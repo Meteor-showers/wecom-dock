@@ -1,0 +1,24 @@
+# 复制为 config.yaml，或只用环境变量。环境变量优先。
+interval: 30m
+health_timeout: 60s
+pull_timeout: 10m
+include_stopped: false
+# 为 true 时只检查带 wecomdock.enable=true 的容器
+only_labeled: false
+data_dir: data
+docker_host: unix:///var/run/docker.sock
+# Docker 登录信息目录（里面有 config.json）。私有仓库需要。
+docker_config: ""
+
+wecom:
+  bot_id: ""
+  secret: ""
+  ws_url: wss://openws.work.weixin.qq.com
+  # 留空表示不限制。建议填「我的id」回给你的 userid。
+  admins: []
+
+# 私有仓库账号。会覆盖 docker config.json 里的同名仓库。
+registries: []
+#  - host: ghcr.io
+#    username: your-name
+#    password: your-token

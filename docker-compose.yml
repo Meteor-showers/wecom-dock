@@ -1,0 +1,19 @@
+services:
+  wecom-dock:
+    image: plutosdocker/wecom-dock:latest
+    container_name: wecom-dock
+    restart: unless-stopped
+    environment:
+      WECOM_BOT_ID: ${WECOM_BOT_ID:-}
+      WECOM_SECRET: ${WECOM_SECRET:-}
+      WECOM_ADMINS: ${WECOM_ADMINS:-}
+      CHECK_INTERVAL: ${CHECK_INTERVAL:-30m}
+      DATA_DIR: /data
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      # 私有仓库把宿主机的 docker 登录目录挂进来，并设置 DOCKER_CONFIG=/docker-config
+      # - ${HOME}/.docker:/docker-config:ro
+    labels:
+      - wecomdock.skip=true

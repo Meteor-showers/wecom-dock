@@ -1,0 +1,7 @@
+/data
+/bin
+/wecom-dock
+.env
+config.yaml
+*.exe
+.DS_Store
