@@ -13,6 +13,7 @@ import (
 // Config is the process configuration. Environment variables override the file.
 type Config struct {
 	Interval       time.Duration
+	DailyAt        *DailyAt
 	HealthTimeout  time.Duration
 	PullTimeout    time.Duration
 	IncludeStopped bool
@@ -29,6 +30,7 @@ type Config struct {
 
 type fileConfig struct {
 	Interval       string `yaml:"interval"`
+	CheckAt        string `yaml:"check_at"`
 	HealthTimeout  string `yaml:"health_timeout"`
 	PullTimeout    string `yaml:"pull_timeout"`
 	IncludeStopped bool   `yaml:"include_stopped"`
@@ -97,6 +99,13 @@ func applyFile(cfg *Config, path string) error {
 	if err := setDuration(&cfg.Interval, file.Interval, path); err != nil {
 		return err
 	}
+	if file.CheckAt != "" {
+		at, err := ParseClock(file.CheckAt)
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		cfg.DailyAt = &at
+	}
 	if err := setDuration(&cfg.HealthTimeout, file.HealthTimeout, path); err != nil {
 		return err
 	}
@@ -142,6 +151,13 @@ func applyEnv(cfg *Config) error {
 		}
 		cfg.Interval = d
 	}
+	if v := os.Getenv("CHECK_AT"); v != "" {
+		at, err := ParseClock(v)
+		if err != nil {
+			return err
+		}
+		cfg.DailyAt = &at
+	}
 	if v := os.Getenv("HEALTH_TIMEOUT"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
@@ -184,6 +200,29 @@ func applyEnv(cfg *Config) error {
 		cfg.Admins = compact(strings.Split(v, ","))
 	}
 	return nil
+}
+
+// DailyAt is a clock time in the process timezone.
+type DailyAt struct {
+	Hour   int
+	Minute int
+}
+
+func (d DailyAt) String() string {
+	return fmt.Sprintf("%02d:%02d", d.Hour, d.Minute)
+}
+
+// ParseClock reads a time like 10:30.
+func ParseClock(raw string) (DailyAt, error) {
+	raw = strings.TrimSpace(raw)
+	parsed, err := time.Parse("15:04", raw)
+	if err != nil {
+		parsed, err = time.Parse("15:04:05", raw)
+	}
+	if err != nil {
+		return DailyAt{}, fmt.Errorf("CHECK_AT 需要 10:30 这种格式")
+	}
+	return DailyAt{Hour: parsed.Hour(), Minute: parsed.Minute()}, nil
 }
 
 // loadDotEnv fills unset environment variables from ./.env.

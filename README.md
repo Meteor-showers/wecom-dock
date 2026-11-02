@@ -37,7 +37,7 @@ docker compose logs -f
 go run ./cmd/wecom-dock
 ```
 
-默认每 30 分钟查一次。改 `CHECK_INTERVAL`，例如 `1h`。状态文件在 `data/state.json`。
+默认每天 10:30 检查一次，时区是 `TZ`，容器里是上海时间。改 `CHECK_AT`，例如 `08:00`。想改回固定间隔就删掉 `CHECK_AT`，再用 `CHECK_INTERVAL`，例如 `1h`。状态文件在 `data/state.json`。
 
 国内服务器访问 Docker Hub 时，在 `.env` 里加上这台机器能访问到的代理，然后 `docker compose up -d`：
 
@@ -100,7 +100,8 @@ macOS 上 Docker Desktop 的 `credsStore` 钥匙串，容器里读不到。这�
 | `WECOM_SECRET` | | 长连接 Secret |
 | `WECOM_ADMINS` | 空 | userid，逗号分隔。空表示不限制 |
 | `WECOM_WS_URL` | `wss://openws.work.weixin.qq.com` | 一般不用改 |
-| `CHECK_INTERVAL` | `30m` | 检查间隔，最短 1 分钟 |
+| `CHECK_AT` | `10:30` | 每天这个钟点检查。设置后忽略 `CHECK_INTERVAL` |
+| `CHECK_INTERVAL` | `30m` | 检查间隔，最短 1 分钟。仅在没有 `CHECK_AT` 时使用 |
 | `HEALTH_TIMEOUT` | `60s` | 等多久健康检查 |
 | `PULL_TIMEOUT` | `10m` | 单次拉取超时 |
 | `INCLUDE_STOPPED` | `false` | 是否也检查已停止的容器 |

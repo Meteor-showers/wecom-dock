@@ -35,6 +35,34 @@ func TestEnvOverridesFile(t *testing.T) {
 	}
 }
 
+func TestCheckAt(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("CONFIG", "")
+	t.Setenv("WECOM_BOT_ID", "id")
+	t.Setenv("WECOM_SECRET", "secret")
+	t.Setenv("CHECK_AT", "10:30")
+	t.Setenv("CHECK_INTERVAL", "30m")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DailyAt == nil || cfg.DailyAt.Hour != 10 || cfg.DailyAt.Minute != 30 {
+		t.Fatalf("%+v", cfg.DailyAt)
+	}
+}
+
+func TestBadCheckAt(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("CONFIG", "")
+	t.Setenv("WECOM_BOT_ID", "id")
+	t.Setenv("WECOM_SECRET", "secret")
+	t.Setenv("CHECK_AT", "10点")
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "CHECK_AT") {
+		t.Fatal(err)
+	}
+}
+
 func TestDotEnv(t *testing.T) {
 	t.Chdir(t.TempDir())
 	body := []byte("WECOM_BOT_ID=from-dotenv\nWECOM_SECRET=\"dotenv-secret\"\n# comment\nCHECK_INTERVAL=45m\n")

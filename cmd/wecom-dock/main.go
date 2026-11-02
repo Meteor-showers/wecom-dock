@@ -82,22 +82,33 @@ func main() {
 	}
 	wc.Handler = talk
 
-	log.Info("wecom-dock 已启动", "interval", cfg.Interval.String(), "admins", len(cfg.Admins))
+	log.Info("wecom-dock 已启动", "schedule", scheduleLabel(cfg), "admins", len(cfg.Admins))
 	go wc.Run(ctx)
-	go schedule(ctx, cfg.Interval, talk)
+	go schedule(ctx, cfg, talk)
 
 	<-ctx.Done()
 	log.Info("正在退出")
 }
 
-func schedule(ctx context.Context, every time.Duration, talk *bot.Bot) {
+func scheduleLabel(cfg config.Config) string {
+	if cfg.DailyAt != nil {
+		return "每天 " + cfg.DailyAt.String() + " " + time.Local.String()
+	}
+	return "每 " + cfg.Interval.String()
+}
+
+func schedule(ctx context.Context, cfg config.Config, talk *bot.Bot) {
+	if cfg.DailyAt != nil {
+		scheduleDaily(ctx, *cfg.DailyAt, talk)
+		return
+	}
 	select {
 	case <-ctx.Done():
 		return
 	case <-time.After(8 * time.Second):
 	}
 	talk.Notify(ctx)
-	ticker := time.NewTicker(every)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -107,4 +118,29 @@ func schedule(ctx context.Context, every time.Duration, talk *bot.Bot) {
 			talk.Notify(ctx)
 		}
 	}
+}
+
+func scheduleDaily(ctx context.Context, at config.DailyAt, talk *bot.Bot) {
+	for {
+		next := nextDaily(time.Now(), at.Hour, at.Minute, time.Local)
+		slog.Info("下次检查", "at", next.Format(time.RFC3339))
+		timer := time.NewTimer(time.Until(next))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+			talk.Notify(ctx)
+		}
+	}
+}
+
+// nextDaily is the next occurrence of hour:minute in loc, strictly after now.
+func nextDaily(now time.Time, hour, minute int, loc *time.Location) time.Time {
+	local := now.In(loc)
+	next := time.Date(local.Year(), local.Month(), local.Day(), hour, minute, 0, 0, loc)
+	if !next.After(local) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next
 }

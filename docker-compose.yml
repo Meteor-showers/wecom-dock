@@ -8,6 +8,7 @@ services:
       WECOM_SECRET: ${WECOM_SECRET:-}
       WECOM_ADMINS: ${WECOM_ADMINS:-}
       CHECK_INTERVAL: ${CHECK_INTERVAL:-30m}
+      CHECK_AT: ${CHECK_AT:-10:30}
       DATA_DIR: /data
       TZ: ${TZ:-Asia/Shanghai}
       HTTP_PROXY: ${HTTP_PROXY:-}
