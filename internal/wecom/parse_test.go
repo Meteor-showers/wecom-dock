@@ -49,3 +49,14 @@ func TestParseEnterChat(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestParseNumericChatType(t *testing.T) {
+	raw := []byte(`{"chatid":"wr9","chattype":2,"from":{"userid":"u"},"text":{"content":"帮助"}}`)
+	got, err := parseBody("r", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ChatType != 2 || got.ChatID != "wr9" || got.Text != "帮助" {
+		t.Fatalf("%+v", got)
+	}
+}

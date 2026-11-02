@@ -342,12 +342,18 @@ func (b *Bot) allowed(user string) bool {
 
 func (b *Bot) reply(ctx context.Context, in wecom.Incoming, content string) {
 	if in.ReqID != "" {
-		if err := b.Msg.ReplyMarkdown(ctx, in.ReqID, content); err == nil {
+		if err := b.Msg.ReplyMarkdown(ctx, in.ReqID, content); err != nil {
+			b.log().Warn("回复失败", "err", err, "req", in.ReqID)
+		} else {
 			return
 		}
 	}
-	if in.ChatID != "" {
-		_ = b.Msg.SendMarkdown(ctx, in.ChatID, in.ChatType, content)
+	if in.ChatID == "" {
+		b.log().Warn("没有会话，回复发不出去", "req", in.ReqID)
+		return
+	}
+	if err := b.Msg.SendMarkdown(ctx, in.ChatID, in.ChatType, content); err != nil {
+		b.log().Warn("主动回复失败", "err", err, "chat", in.ChatID)
 	}
 }
 

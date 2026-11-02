@@ -1,6 +1,7 @@
 package wecom
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 )
@@ -19,9 +20,9 @@ type Incoming struct {
 }
 
 type callbackBody struct {
-	MsgID    string `json:"msgid"`
-	ChatID   string `json:"chatid"`
-	ChatType string `json:"chattype"`
+	MsgID    string     `json:"msgid"`
+	ChatID   string     `json:"chatid"`
+	ChatType flexString `json:"chattype"`
 	From     struct {
 		UserID string `json:"userid"`
 	} `json:"from"`
@@ -47,7 +48,7 @@ func parseBody(reqID string, raw json.RawMessage) (Incoming, error) {
 		ChatType: 1,
 		ChatID:   body.From.UserID,
 	}
-	if strings.EqualFold(body.ChatType, "group") {
+	if strings.EqualFold(string(body.ChatType), "group") || string(body.ChatType) == "2" {
 		in.ChatType = 2
 		if body.ChatID != "" {
 			in.ChatID = body.ChatID
@@ -86,4 +87,25 @@ func parseEvent(raw json.RawMessage) (eventType, key, task string) {
 		task = ev.Nested.TaskID
 	}
 	return ev.EventType, key, task
+}
+
+// flexString accepts a JSON string or number. WeCom documents chattype as a string,
+// and some callbacks send 1 or 2.
+type flexString string
+
+func (s *flexString) UnmarshalJSON(raw []byte) error {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	if raw[0] == '"' {
+		var v string
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return err
+		}
+		*s = flexString(v)
+		return nil
+	}
+	*s = flexString(raw)
+	return nil
 }

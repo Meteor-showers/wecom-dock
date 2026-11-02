@@ -122,7 +122,7 @@ func (c *Client) session(ctx context.Context) error {
 			continue
 		}
 		if frame.ErrCode != 0 {
-			c.Log.Warn("企业微信返回错误", "errcode", frame.ErrCode, "errmsg", frame.ErrMsg, "req", frame.Headers.ReqID)
+			c.Log.Warn("企业微信返回错误", "errcode", frame.ErrCode, "errmsg", frame.ErrMsg, "cmd", frame.Cmd, "req", frame.Headers.ReqID)
 		}
 		switch frame.Cmd {
 		case cmdMsg:
@@ -131,6 +131,7 @@ func (c *Client) session(ctx context.Context) error {
 				c.Log.Warn("解析消息失败", "err", err)
 				continue
 			}
+			c.Log.Info("收到消息", "user", msg.UserID, "chat", msg.ChatID, "text", msg.Text)
 			if c.Handler != nil {
 				c.Handler.OnMessage(sessCtx, msg)
 			}
@@ -140,11 +141,16 @@ func (c *Client) session(ctx context.Context) error {
 				c.Log.Warn("解析事件失败", "err", err)
 				continue
 			}
+			c.Log.Info("收到事件", "event", msg.Event, "user", msg.UserID, "key", msg.EventKey)
 			if msg.Event == "disconnected_event" {
 				return errors.New("连接被新的订阅踢掉")
 			}
 			if c.Handler != nil {
 				c.Handler.OnEvent(sessCtx, msg)
+			}
+		default:
+			if frame.Cmd != "" {
+				c.Log.Info("收到未处理的企业微信帧", "cmd", frame.Cmd, "req", frame.Headers.ReqID)
 			}
 		}
 	}
@@ -203,13 +209,23 @@ func (c *Client) heartbeat(ctx context.Context, conn *websocket.Conn) {
 }
 
 // ReplyMarkdown answers the message that produced reqID.
+// Long-connection replies have to be a finished stream. A markdown body is accepted
+// by the socket and then never shown in the chat.
 func (c *Client) ReplyMarkdown(ctx context.Context, reqID, content string) error {
+	streamID := reqID
+	if streamID == "" {
+		streamID = newReqID()
+	}
 	return c.writeCurrent(ctx, outFrame{
 		Cmd:     cmdRespond,
 		Headers: map[string]string{"req_id": reqID},
 		Body: map[string]any{
-			"msgtype":  "markdown",
-			"markdown": map[string]string{"content": content},
+			"msgtype": "stream",
+			"stream": map[string]any{
+				"id":      streamID,
+				"finish":  true,
+				"content": content,
+			},
 		},
 	})
 }
