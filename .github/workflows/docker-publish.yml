@@ -126,12 +126,36 @@ jobs:
           user=$(printf '%s' "$DOCKERHUB_USERNAME" | tr -d '[:space:]')
           token=$(printf '%s' "$DOCKERHUB_TOKEN" | tr -d '[:space:]')
           echo "username_len=${#user} token_len=${#token}"
+          case "$token" in
+            dckr_pat_*) echo "token_kind=pat" ;;
+            *) echo "token_kind=other" ;;
+          esac
           if ! printf '%s' "$user" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]*$'; then
             echo "DOCKERHUB_USERNAME 应该只填 Docker Hub 用户名，例如 plutosdocker。不要填邮箱、引号、中文或 Access Token。"
             exit 1
           fi
           if ! printf '%s' "$token" | grep -Eq '^[A-Za-z0-9._~+/-]+=*$'; then
             echo "DOCKERHUB_TOKEN 里有异常字符。到 Docker Hub → Account Settings → Personal access tokens 重新复制，只粘贴一行令牌。"
+            exit 1
+          fi
+          hub_status=$(U="$user" T="$token" python3 - <<'PY'
+import json, os, urllib.request, urllib.error
+req = urllib.request.Request(
+    "https://hub.docker.com/v2/users/login/",
+    data=json.dumps({"username": os.environ["U"], "password": os.environ["T"]}).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        print(resp.status)
+except urllib.error.HTTPError as err:
+    print(err.code)
+PY
+)
+          echo "hub_login_status=$hub_status"
+          if [ "$hub_status" != "200" ]; then
+            echo "Docker Hub 拒绝了这对用户名和令牌。请新建一个 Personal Access Token（以 dckr_pat_ 开头，权限含 Read & Write），用户名填 plutosdocker，然后更新 DOCKERHUB 环境里的两个密钥。"
             exit 1
           fi
           printf '%s' "$token" | docker login docker.io --username "$user" --password-stdin
